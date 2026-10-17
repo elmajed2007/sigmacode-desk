@@ -128,3 +128,75 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/SigmaCodeDesk-Setup-*.exe
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      SIGMADESK_DATA: ${{ github.workspace }}/ci-data
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Unit tests
+        run: python -m pytest -q tests
+
+      - name: Fetch llama.cpp (Linux x64 build)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r TAG URL < <(gh api "repos/ggml-org/llama.cpp/releases?per_page=10" --jq '[.[] | {t: .tag_name, a: ([.assets[] | select(.name | test("bin-ubuntu-x64\\.(zip|tar\\.gz)$"))][0])} | select(.a != null)][0] | "\(.t) \(.a.browser_download_url)"')
+          echo "::notice::llama.cpp $TAG $(basename "$URL")"
+          curl -sSL "$URL" -o llama.pkg
+          mkdir -p llama-tmp runtime/llama
+          case "$URL" in *.zip) unzip -q llama.pkg -d llama-tmp ;; *) tar -xzf llama.pkg -C llama-tmp ;; esac
+          BIN=$(find llama-tmp -name llama-server -type f | head -1)
+          cp -a "$(dirname "$BIN")"/. runtime/llama/
+          echo "$TAG" > runtime/llama/VERSION.txt
+          chmod +x runtime/llama/llama-server
+          runtime/llama/llama-server --version || true
+
+      - name: Build app (PyInstaller)
+        run: pyinstaller --noconfirm --clean --distpath dist --workpath build packaging/sigmadesk.spec
+
+      - name: Bundle runtime and smoke test
+        run: |
+          set -euo pipefail
+          cp -a runtime dist/SigmaCodeDesk/runtime
+          cp THIRD_PARTY_NOTICES.md dist/SigmaCodeDesk/
+          SIGMADESK_DATA="$PWD/smoke-data" dist/SigmaCodeDesk/SigmaCodeDesk --self-test "$PWD/tests/fixtures/scan2.pdf" && rc=0 || rc=$?
+          echo "::notice title=Linux self-test::exit=$rc $(cat smoke-data/selftest.json 2>/dev/null)"
+          dist/SigmaCodeDesk/runtime/llama/llama-server --version 2>&1 | head -3 || true
+          exit $rc
+
+      - name: Package tar.gz
+        run: |
+          set -euo pipefail
+          VER=$(sed -n 's/__version__ = "\(.*\)"/\1/p' app/sigmadesk/__init__.py)
+          mkdir -p pkg/SigmaCodeDesk-linux
+          cp -a dist/SigmaCodeDesk pkg/SigmaCodeDesk-linux/
+          cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/sigmacode-desk.png pkg/SigmaCodeDesk-linux/
+          tar -C pkg -czf "dist/SigmaCodeDesk-$VER-linux-x64.tar.gz" SigmaCodeDesk-linux
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: SigmaCodeDesk-linux
+          path: dist/SigmaCodeDesk-*-linux-x64.tar.gz
+          if-no-files-found: error
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/SigmaCodeDesk-*-linux-x64.tar.gz

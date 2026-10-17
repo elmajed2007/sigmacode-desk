@@ -142,5 +142,7 @@ class Settings:
             self._data = _merge(self._data, patch)
             tmp = self.path.with_suffix(".tmp")
             tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
+            if os.name != "nt":  # keys are not DPAPI-encrypted here: owner-only file
+                os.chmod(tmp, 0o600)
             tmp.replace(self.path)
             return deepcopy(self._data)

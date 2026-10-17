@@ -58,7 +58,8 @@ def _app_browser() -> list[str] | None:
             if base:
                 candidates.append(Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe")
                 candidates.append(Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe")
-    for name in ("microsoft-edge", "google-chrome", "chromium", "chromium-browser"):
+    for name in ("microsoft-edge", "microsoft-edge-stable", "google-chrome", "google-chrome-stable",
+                 "chromium", "chromium-browser", "brave-browser"):
         found = shutil.which(name)
         if found:
             candidates.append(Path(found))
