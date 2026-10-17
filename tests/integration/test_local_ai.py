@@ -9,7 +9,7 @@ from conftest import FIXTURES, wait_status
 
 pytestmark = pytest.mark.skipif(os.environ.get("SIGMADESK_IT") != "1", reason="integration only")
 
-CHAT_MODEL = {"id": "it-chat", "repo": "Qwen/Qwen3-0.6B-GGUF", "patterns": ["*Q8_0.gguf", "*Q4_K_M.gguf"]}
+CHAT_MODEL = next(e for e in __import__("sigmadesk.ai.catalog", fromlist=["x"]).CATALOG if e["id"] == "qwen3-1.7b")
 
 
 def fetch(entry):
@@ -36,7 +36,7 @@ def test_offline_answer_with_local_models(tmp_path, monkeypatch):
     chat_file = fetch(CHAT_MODEL)
 
     desk = Desk(tmp_path / "data")
-    desk.settings.update({"answer": {"provider": "local", "max_tokens": 256},
+    desk.settings.update({"answer": {"provider": "local", "max_tokens": 400},
                           "providers": {"local": {"model_file": str(chat_file), "context": 4096}},
                           "embeddings": {"provider": "local", "local_model_file": str(embed_file)}})
     cid = desk.store.collections()[0]["id"]
@@ -59,6 +59,7 @@ def test_offline_answer_with_local_models(tmp_path, monkeypatch):
     print("::notice title=Local AI answer::" + summary.replace("\n", " "))
     assert not msg["is_error"], msg
     assert "<think>" not in msg["content"]
+    assert msg["outcome"] == "answered" and msg["sources"], msg
     runtime.CHAT.stop()
     runtime.EMBED.stop()
     desk.jobs.put(("stop",))
