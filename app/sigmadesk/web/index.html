@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SigmaCode Desk</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <nav class="rail" aria-label="القائمة الرئيسية">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">Σ</span>
+      <span class="brand-name">SigmaCode Desk</span>
+    </div>
+    <button class="nav" data-view="chat"><span class="ico">💬</span><span data-i18n="nav.chat">المحادثة</span></button>
+    <button class="nav" data-view="library"><span class="ico">📚</span><span data-i18n="nav.library">المكتبة</span></button>
+    <button class="nav" data-view="search"><span class="ico">🔎</span><span data-i18n="nav.search">البحث</span></button>
+    <button class="nav" data-view="settings"><span class="ico">⚙️</span><span data-i18n="nav.settings">الإعدادات</span></button>
+    <div class="rail-foot" id="status-line" role="status"></div>
+  </nav>
+  <main id="view" class="view" tabindex="-1"></main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

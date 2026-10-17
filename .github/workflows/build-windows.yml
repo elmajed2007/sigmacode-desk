@@ -1,0 +1,113 @@
+name: Build Windows installer
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      integration:
+        description: "Run the local-AI integration test (downloads ~1.3 GB of models)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: "1"
+      SIGMADESK_DATA: ${{ github.workspace }}\ci-data
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Unit tests
+        run: python -m pytest -q tests
+
+      - name: Fetch llama.cpp (Windows CPU build)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $rel = gh api repos/ggml-org/llama.cpp/releases/latest | ConvertFrom-Json
+          $asset = $rel.assets | Where-Object { $_.name -match '^llama-.*-bin-win-cpu-x64\.zip$' } | Select-Object -First 1
+          if (-not $asset) { throw "No Windows CPU asset in llama.cpp $($rel.tag_name)" }
+          Write-Host "llama.cpp $($rel.tag_name): $($asset.name)"
+          Invoke-WebRequest $asset.browser_download_url -OutFile llama.zip
+          New-Item -ItemType Directory -Force runtime/llama | Out-Null
+          Expand-Archive llama.zip -DestinationPath llama-tmp -Force
+          $server = Get-ChildItem llama-tmp -Recurse -Filter llama-server.exe | Select-Object -First 1
+          Copy-Item (Join-Path $server.DirectoryName '*') runtime/llama -Recurse -Force
+          "$($rel.tag_name)" | Out-File runtime/llama/VERSION.txt -Encoding utf8
+          & runtime/llama/llama-server.exe --version
+
+      - name: Cache test models
+        if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.integration)
+        uses: actions/cache@v4
+        with:
+          path: ci-data/models
+          key: it-models-qwen3-0.6b-v1
+
+      - name: Local AI integration test (llama.cpp + Qwen3)
+        if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.integration)
+        env:
+          SIGMADESK_IT: "1"
+        run: python -m pytest -q -s tests/integration
+
+      - name: Build app (PyInstaller)
+        run: pyinstaller --noconfirm --clean --distpath dist --workpath build packaging/sigmadesk.spec
+
+      - name: Bundle llama.cpp runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/SigmaCodeDesk/runtime | Out-Null
+          Copy-Item runtime/llama dist/SigmaCodeDesk/runtime/llama -Recurse -Force
+          Copy-Item THIRD_PARTY_NOTICES.md dist/SigmaCodeDesk/
+
+      - name: Smoke test the packaged app
+        shell: pwsh
+        run: |
+          $env:SIGMADESK_DATA = "$PWD\smoke-data"
+          $p = Start-Process dist/SigmaCodeDesk/SigmaCodeDesk.exe -ArgumentList '--self-test', "$PWD\tests\fixtures\scan2.pdf" -Wait -PassThru
+          Get-Content smoke-data/selftest.json -Encoding utf8
+          if ($p.ExitCode -ne 0) { Get-Content smoke-data/logs/app.log -ErrorAction SilentlyContinue; throw "self-test failed ($($p.ExitCode))" }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $lang = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages\Arabic.isl"
+          if (-not (Test-Path $lang)) { $lang = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages\Unofficial\Arabic.isl" }
+          if (Test-Path $lang) { Copy-Item $lang packaging/Arabic.isl } else {
+            try { Invoke-WebRequest https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Arabic.isl -OutFile packaging/Arabic.isl } catch { Write-Host "Arabic installer language not available" } }
+          $ver = (Select-String -Path app/sigmadesk/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          & $iscc "/DAppVersion=$ver" packaging/installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SigmaCodeDesk-Setup
+          path: dist/SigmaCodeDesk-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/SigmaCodeDesk-Setup-*.exe

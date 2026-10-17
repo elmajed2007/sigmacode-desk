@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+runtime/
+ci-data/
+smoke-data/
+llama.zip
+llama-tmp/
+packaging/Arabic.isl
+*.gguf
+.pytest_cache/

@@ -1,0 +1,12 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=(1, 0, 0, 0), prodvers=(1, 0, 0, 0)),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('CompanyName', 'SigmaCode'),
+      StringStruct('FileDescription', 'SigmaCode Desk - offline Arabic OCR and document assistant'),
+      StringStruct('FileVersion', '1.0.0'),
+      StringStruct('ProductName', 'SigmaCode Desk'),
+      StringStruct('ProductVersion', '1.0.0')])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
