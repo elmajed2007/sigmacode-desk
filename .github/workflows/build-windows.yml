@@ -74,7 +74,7 @@ jobs:
 
       - name: Cache test models
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.integration)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ci-data/models
           key: it-models-qwen3-0.6b-v1
@@ -100,7 +100,8 @@ jobs:
         run: |
           $env:SIGMADESK_DATA = "$PWD\smoke-data"
           $p = Start-Process dist/SigmaCodeDesk/SigmaCodeDesk.exe -ArgumentList '--self-test', "$PWD\tests\fixtures\scan2.pdf" -Wait -PassThru
-          Get-Content smoke-data/selftest.json -Encoding utf8
+          $rep = Get-Content smoke-data/selftest.json -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+          Write-Host "::notice title=Packaged self-test::exit=$($p.ExitCode) $rep"
           if ($p.ExitCode -ne 0) { Get-Content smoke-data/logs/app.log -ErrorAction SilentlyContinue; Write-Host "::error::self-test failed ($($p.ExitCode)): $(Get-Content smoke-data/selftest.json -Raw -ErrorAction SilentlyContinue)"; exit 1 }
 
       - name: Build installer (Inno Setup)
@@ -116,7 +117,7 @@ jobs:
           & $iscc "/DAppVersion=$ver" packaging/installer.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: SigmaCodeDesk-Setup
           path: dist/SigmaCodeDesk-Setup-*.exe

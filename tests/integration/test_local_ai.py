@@ -55,7 +55,8 @@ def test_offline_answer_with_local_models(tmp_path, monkeypatch):
     assert hits and info["mode"] == "hybrid", info
     chat = desk.store.add_chat("it", [])
     msg = desk.ask(chat, "ما الذي يقيسه الاختبار التكيفي؟")
-    print("ANSWER:", msg["outcome"], msg["content"][:300])
+    summary = f"outcome={msg['outcome']} model={msg['model']} sources={len(msg['sources'])} answer={msg['content'][:200]}"
+    print("::notice title=Local AI answer::" + summary.replace("\n", " "))
     assert not msg["is_error"], msg
     assert "<think>" not in msg["content"]
     runtime.CHAT.stop()
