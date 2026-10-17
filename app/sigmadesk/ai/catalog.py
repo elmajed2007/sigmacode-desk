@@ -25,8 +25,8 @@ CATALOG = [
     },
     {
         "id": "qwen3-1.7b", "role": "chat",
-        "name": "Qwen3 1.7B (خفيف)", "repo": "Qwen/Qwen3-1.7B-GGUF", "patterns": ["*Q4_K_M.gguf", "*Q8_0.gguf"],
-        "size_gb": 1.1, "license": "Apache-2.0", "ram_gb": 4,
+        "name": "Qwen3 1.7B (خفيف)", "repo": "Qwen/Qwen3-1.7B-GGUF", "patterns": ["*Q8_0.gguf", "*Q4_K_M.gguf"],
+        "size_gb": 1.8, "license": "Apache-2.0", "ram_gb": 4,
         "note": "للأجهزة الضعيفة: أسرع وأقل دقة.",
     },
     {
